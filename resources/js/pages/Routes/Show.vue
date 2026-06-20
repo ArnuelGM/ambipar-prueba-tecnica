@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { Route, Watch, MapPin, ArrowLeft, Car, Bike, Footprints } from '@lucide/vue';
+import {
+  Route,
+  Watch,
+  MapPin,
+  ArrowLeft,
+  Car,
+  Bike,
+  Footprints,
+  Scan,
+} from '@lucide/vue';
 import type { Ref } from 'vue';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 
@@ -56,6 +65,15 @@ const routePoints = computed(() => {
   });
 
   return points;
+});
+
+const routeBounds = computed(() => {
+  const bounds = new mapbox.LngLatBounds();
+  routePoints.value.forEach((point) => {
+    bounds.extend(point);
+  });
+
+  return bounds;
 });
 
 function findSectionPoints(section: any) {
@@ -119,10 +137,7 @@ function viewSection(section: any) {
 }
 
 function buildBounds() {
-  const bounds = new mapbox.LngLatBounds();
-  routePoints.value.forEach((point) => {
-    bounds.extend(point);
-  });
+  const bounds = routeBounds.value;
   map.fitBounds(bounds, { padding: 20 });
 }
 
@@ -287,8 +302,19 @@ onBeforeUnmount(() => {
       <div class="sticky top-0 z-10 -my-6 bg-white py-6">
         <div
           ref="mapContainer"
-          class="h-80 w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
-        ></div>
+          class="h-80 w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 relative"
+        >
+          <Button
+            variant="icon"
+            class="absolute top-2 right-2 z-10 rounded-full bg-white/20 p-2 text-gray-600 shadow hover:bg-white dark:bg-gray-800/80 dark:text-gray-300 dark:hover:bg-gray-700"
+            @click="buildBounds()"
+            :title="'Recentrar Ruta'"
+          >
+            <Scan :size="26">
+              <Route :size="14" :x="5" :y="5" :strokeWidth="1"/>
+            </Scan>
+          </Button>
+        </div>
       </div>
 
       <div>
