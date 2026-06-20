@@ -2,7 +2,7 @@
     <header>
         <nav class="bg-white shadow sticky top-0">
             <div class="max-w-5xl px-4 mx-auto h-12 flex items-center">
-                <h1 class="font-bold text-3xl">Ambipar RoutesCalculator</h1>
+                <h1 class="font-bold text-3xl">Routes Calculator</h1>
             </div>
         </nav>
     </header>

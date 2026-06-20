@@ -1,10 +1,10 @@
-<script setup>
+<script setup lang="ts">
 import { Link } from '@inertiajs/vue3'
 //import { show } from "@/"
 
 defineProps({
   routes: {
-    type: Array,
+    type: Array<any>,
     default: () => []
   }
 })
@@ -30,7 +30,7 @@ defineProps({
       <div
         v-for="route in routes"
         :key="route.id"
-        class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between"
+        class="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-5 shadow hover:shadow-md transition flex flex-col justify-between"
       >
         <div>
           <div class="flex items-center justify-between mb-4">

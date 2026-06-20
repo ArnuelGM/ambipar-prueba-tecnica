@@ -1,101 +1,289 @@
 <script setup lang="ts">
-import { Form } from "@inertiajs/vue3"
-import { ref } from "vue"
-import AppLayout from '@/components/Layouts/AppLayout.vue';
+import { Form, Link } from '@inertiajs/vue3';
+import {
+  Bike,
+  Car,
+  Footprints,
+  MapPin,
+  MapPinOff,
+  Route,
+  MapPinX,
+  ArrowLeft
+} from '@lucide/vue';
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
 
 const formRef = ref();
+const mapContainer = ref<HTMLElement | null>(null);
+let mapbox: any = null;
+let map: any = null;
+let originMarker: any = null;
+let destMarker: any = null;
 
-const form = {
-    originLat: '4.734694',
-    originLng: '-74.132336',
-    destLat: '6.246687',
-    destLng: '-75.576429'
-}
+const selecting = ref<'none' | 'origin' | 'dest'>('none');
+
+const form = reactive({
+  originLat: null as number | null,
+  originLng: null as number | null,
+  destLat: null as number | null,
+  destLng: null as number | null,
+  transportMode: 'driving',
+});
+
+const enableSelectOrigin = () => (selecting.value = 'origin');
+const enableSelectDest = () => (selecting.value = 'dest');
+const disableSelect = () => (selecting.value = 'none');
+
+const handleMapClick = (e: any) => {
+  console.log(e);
+
+  if (!mapbox) {
+    return;
+  }
+
+  const { lat, lng } = e.lngLat;
+  const marker = document.createElement('div');
+
+  if (selecting.value === 'origin') {
+    removeOriginMarker();
+    form.originLat = Number(lat.toFixed(6));
+    form.originLng = Number(lng.toFixed(6));
+
+    if (originMarker) {
+      originMarker.setLngLat(e.latlng);
+    } else {
+      marker.className = 'marker origin-marker';
+      originMarker = new mapbox.Marker({ element: marker }).setLngLat(e.lngLat).addTo(map);
+    }
+
+    selecting.value = 'none';
+  } else if (selecting.value === 'dest') {
+    removeDestMarker();
+    form.destLat = Number(lat.toFixed(6));
+    form.destLng = Number(lng.toFixed(6));
+
+    if (destMarker) {
+      destMarker.setLngLat(e.latlng);
+    } else {
+      marker.className = 'marker dest-marker';
+      destMarker = new mapbox.Marker({ element: marker }).setLngLat(e.lngLat).addTo(map);
+    }
+
+    selecting.value = 'none';
+  }
+};
+
+const removeOriginMarker = () => {
+  form.originLat = null;
+  form.originLng = null;
+
+  if (originMarker) {
+    originMarker.remove();
+    originMarker = null;
+  }
+};
+
+const removeDestMarker = () => {
+  form.destLat = null;
+  form.destLng = null;
+
+  if (destMarker) {
+    destMarker.remove();
+    destMarker = null;
+  }
+};
 
 const handleFormReset = () => {
-    formRef.value.reset();
-}
+  removeOriginMarker();
+  removeDestMarker();
 
+  selecting.value = 'none';
+
+  if (formRef.value) {
+    formRef.value.reset();
+  }
+};
+
+onMounted(async () => {
+  // protección extra: si por alguna razón no hay window
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  // import dinámico de Leaflet (evita ejecutar código en Node)
+  mapbox = await import('mapbox-gl');
+  mapbox = (await mapbox.default) ?? mapbox;
+  mapbox.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+  // inicializa mapa (ajusta centro/zoom según necesites)
+  map = new mapbox.Map({
+    container: mapContainer.value as HTMLElement,
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [-74.088318, 4.672356],
+    // config: {
+    //     basemap: { theme: 'monochrome' }
+    // },
+    zoom: 10,
+    projection: 'mercator',
+  });
+
+  map.on('click', handleMapClick);
+});
+
+onBeforeUnmount(() => {
+  if (map) {
+    map.off('click', handleMapClick);
+    map.remove();
+    map = null;
+  }
+});
 </script>
 
 <template>
-    <AppLayout>
-        <div class="max-w-xl mx-auto p-6">
-            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-100 dark:border-gray-700">
+  <div class="mx-auto max-w-5xl p-6">
+    <div class="mb-4">
+      <Link
+        href="/routes"
+        class="flex w-fit items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+      >
+        <ArrowLeft />
+        Volver al historial
+      </Link>
+    </div>
+    <div class="bg-white">
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800">Nueva Ruta</h2>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Selecciona origen y destino en el mapa.</p>
+      </div>
 
-                <div class="mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800 dark:text-white">Nueva Ruta</h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Introduce las coordenadas geográficas para calcular el trayecto más óptimo.
-                    </p>
-                </div>
+      <div class="flex flex-col gap-6">
+        <div>
+          <div class="mb-3 flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              @click="enableSelectOrigin"
+              :class="[selecting === 'origin' ? 'bg-blue-600 text-white' : '']"
+            >
+              <MapPin />
+              Seleccionar Origen
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              @click="enableSelectDest"
+              :class="[selecting === 'dest' ? 'bg-emerald-600 text-white' : '']"
+            >
+              <MapPin />
+              Seleccionar Destino
+            </Button>
+            <Button
+              type="button"
+              @click="disableSelect"
+              variant="secondary"
+              class="ml-auto"
+            >
+              <MapPinX />
+              Cancelar selección
+            </Button>
+          </div>
 
-                <Form ref="formRef" class="space-y-6" action="/routes" method="post">
+          <div ref="mapContainer" class="h-80 w-full overflow-hidden rounded-lg border border-gray-200"></div>
+          <p class="mt-2 text-xs text-gray-500">Haz click en el mapa para fijar el punto activo.</p>
 
-                    <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
-                            <h3 class="text-sm font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                Punto de Origen
-                            </h3>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Latitud</label>
-                                <input
-                                    name="origin_lat" v-model="form.originLat"
-                                    type="number" step="any" placeholder="Ej: 4.6097"
-                                    class="w-full px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Longitud</label>
-                                <input
-                                    name="origin_lng" v-model="form.originLng"
-                                    type="number" step="any" placeholder="Ej: -74.0817"
-                                    class="w-full px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                            <h3 class="text-sm font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                                Punto de Destino
-                            </h3>
-                        </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Latitud</label>
-                                <input
-                                    name="destination_lat" v-model="form.destLat"
-                                    type="number" step="any" placeholder="Ej: 4.6784"
-                                    class="w-full px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
-                            </div>
-                            <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Longitud</label>
-                                <input
-                                    name="destination_lng" v-model="form.destLng"
-                                    type="number" step="any" placeholder="Ej: -74.0489"
-                                    class="w-full px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-end gap-3 pt-2">
-                        <button type="button" @click="handleFormReset"
-                            class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
-                            Limpiar
-                        </button>
-                        <button type="submit"
-                            class="px-5 py-2.5 text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition-all flex items-center gap-2">
-                            Optimizar Ruta
-                        </button>
-                    </div>
-
-                </Form>
-
-            </div>
+          <div class="mt-4">
+            <Tabs :default-value="form.transportMode" v-model="form.transportMode">
+              <TabsList>
+                <TabsTrigger value="driving-traffic">
+                  <Car /> Traffic
+                </TabsTrigger>
+                <TabsTrigger value="driving">
+                  <Car /> Driving
+                </TabsTrigger>
+                <TabsTrigger value="cycling">
+                  <Bike /> Cycling
+                </TabsTrigger>
+                <TabsTrigger value="walking">
+                  <Footprints /> Walking
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
-    </AppLayout>
+
+        <div>
+          <Form ref="formRef" action="/routes" method="post" class="space-y-4">
+            <input type="hidden" name="transport_mode" v-model="form.transportMode" />
+
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <h3 class="mb-2 text-sm font-semibold text-blue-600 uppercase">Punto de Origen</h3>
+              <div class="grid grid-cols-2 gap-2">
+                <Input
+                  name="origin_lat"
+                  :value="form.originLat"
+                  type="text"
+                  readonly
+                  class="w-full focus-visible:ring-0 shadow-none bg-white"
+                  placeholder="No seleccionado"
+                />
+                <Input
+                  name="origin_lng"
+                  :value="form.originLng"
+                  type="text"
+                  readonly
+                  class="w-full focus-visible:ring-0 shadow-none bg-white"
+                  placeholder="No seleccionado"
+                />
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <h3 class="mb-2 text-sm font-semibold text-emerald-600 uppercase">Punto de Destino</h3>
+              <div class="grid grid-cols-2 gap-2">
+                <Input
+                  name="destination_lat"
+                  :value="form.destLat"
+                  type="text"
+                  readonly
+                  class="w-full focus-visible:ring-0 shadow-none bg-white"
+                  placeholder="No seleccionado"
+                />
+                <Input
+                  name="destination_lng"
+                  :value="form.destLng"
+                  type="text"
+                  readonly
+                  class="w-full focus-visible:ring-0 shadow-none bg-white"
+                  placeholder="No seleccionado"
+                />
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 pt-2">
+              <Button
+                type="button"
+                @click="handleFormReset"
+                variant="secondary"
+              >
+                <MapPinOff />
+                Limpiar
+              </Button>
+
+              <Button
+                type="submit"
+                :disabled="!(form.originLat && form.originLng && form.destLat && form.destLng)"
+                class="bg-blue-600 hover:bg-blue-700"
+                variant="default"
+              >
+                <Route />
+                Optimizar Ruta
+              </Button>
+            </div>
+          </Form>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>

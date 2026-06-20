@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string("destination_lng");
             $table->double("total_distance_km");
             $table->integer("total_duration_minutes");
+            $table->string("transport_mode");
             $table->timestamps();
         });
     }
